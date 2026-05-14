@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/offline_env.sh"
+
 export SLOW_THINKING_MODEL_PATH="${SLOW_THINKING_MODEL_PATH:-deepseek-ai/DeepSeek-R1-Distill-Qwen-7B}"
 export OUTPUT_DIR="${OUTPUT_DIR:-checkpoints/DSR1-Qwen-7B-BATLRT-SFT}"
 export RUN_NAME="${RUN_NAME:-batlrt-sft-7b}"

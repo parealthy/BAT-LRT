@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/offline_env.sh"
+
 bash scripts/eval_batlrt_math_1.5B.sh
 bash scripts/eval_batlrt_ood_1.5B.sh
 

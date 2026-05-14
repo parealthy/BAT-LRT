@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/offline_env.sh"
+
 if [ -n "${MODEL_CACHE:-}" ]; then
     export HF_HOME="$MODEL_CACHE"
 fi

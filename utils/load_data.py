@@ -1,7 +1,6 @@
-import os
-from pathlib import Path
-
 from datasets import DatasetDict, load_dataset, load_from_disk
+
+from utils.local_assets import get_dataset_root, resolve_dataset_path
 
 SUPPORTED_DATASETS = [
     "open-r1/OpenR1-Math-220k",
@@ -11,7 +10,7 @@ SUPPORTED_DATASETS = [
     "MATH-DATA",
 ]
 
-DEFAULT_DATA_ROOT = Path(os.environ.get("LRT_DATA_ROOT", "./data/datasets")).expanduser()
+DEFAULT_DATA_ROOT = get_dataset_root()
 MATH_SUFFIX = " Let's think step by step and output the final answer within \\boxed{}."
 
 
@@ -29,8 +28,8 @@ def _load_from_local_or_hub(
     split: str = "train",
     config_name: str | None = None,
 ):
-    local_path = DEFAULT_DATA_ROOT / dataset_name
-    if local_path.exists():
+    local_path = resolve_dataset_path(dataset_name)
+    if local_path is not None and local_path.exists():
         try:
             return _resolve_split(load_from_disk(str(local_path)), split)
         except Exception:
@@ -44,7 +43,7 @@ def _load_from_local_or_hub(
 
 
 def _load_saved_dataset_from_disk(*path_parts: str, split: str = "train"):
-    local_path = DEFAULT_DATA_ROOT.joinpath(*path_parts)
+    local_path = get_dataset_root().joinpath(*path_parts)
     if not local_path.exists():
         raise FileNotFoundError(
             f"Expected a saved dataset under {local_path}, but it was not found. "
@@ -124,7 +123,7 @@ def load_train_data(dataset_name: str):
             )
 
         case "stepfun-ai/Step-3.5-Flash-SFT":
-            local_processed_dir = DEFAULT_DATA_ROOT / dataset_name / "single_turn_processed"
+            local_processed_dir = get_dataset_root() / dataset_name / "single_turn_processed"
             if local_processed_dir.exists():
                 dataset = _resolve_split(load_from_disk(str(local_processed_dir)), "train")
             else:

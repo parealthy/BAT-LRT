@@ -4,7 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from datasets import load_dataset, load_from_disk
+from datasets import DatasetDict, load_dataset, load_from_disk
 
 from run_inference import LatentReasoningInteractive
 
@@ -14,6 +14,7 @@ import sys
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.reward_func import accuracy_reward
+from utils.local_assets import resolve_dataset_path
 
 
 def _get_field(example: dict, field: str):
@@ -34,9 +35,30 @@ def _normalize_answer(value) -> str:
     return text
 
 
+def _resolve_split(dataset_obj, split: str):
+    if isinstance(dataset_obj, DatasetDict):
+        if split not in dataset_obj:
+            raise KeyError(f"Split '{split}' not found. Available splits: {list(dataset_obj.keys())}")
+        return dataset_obj[split]
+    return dataset_obj
+
+
+def _load_local_dataset(path: Path, args):
+    try:
+        return _resolve_split(load_from_disk(str(path)), args.split)
+    except Exception:
+        if args.dataset_config:
+            return load_dataset(str(path), args.dataset_config, split=args.split)
+        return load_dataset(str(path), split=args.split)
+
+
 def _load_eval_dataset(args):
     if args.dataset_path:
-        return load_from_disk(args.dataset_path)
+        local_path = resolve_dataset_path(args.dataset_path) or Path(args.dataset_path).expanduser()
+        return _load_local_dataset(local_path, args)
+    local_path = resolve_dataset_path(args.dataset_name)
+    if local_path is not None:
+        return _load_local_dataset(local_path, args)
     if args.dataset_config:
         return load_dataset(args.dataset_name, args.dataset_config, split=args.split)
     return load_dataset(args.dataset_name, split=args.split)

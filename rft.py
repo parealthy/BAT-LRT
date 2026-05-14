@@ -21,6 +21,7 @@ from modeling.reason import LatentTransformerReasoningModel, TransformerReasonin
 from modeling.adaptive_reason import AdaptiveTrajectoryAnchoredReasoningNet
 from trainer.grpo_trainer import GRPOTrainer
 from utils.load_data import load_train_data
+from utils.local_assets import is_offline_mode, resolve_model_path
 from utils.reward_func import accuracy_reward, length_penalty_reward
 
 
@@ -111,10 +112,12 @@ def _resolve_hidden_size(config) -> int:
 
 
 def load_tokenizer(model_path: str):
+    resolved_model_path = resolve_model_path(model_path)
     tokenizer = AutoTokenizer.from_pretrained(
-        model_path,
+        resolved_model_path,
         trust_remote_code=True,
         use_fast=True,
+        local_files_only=is_offline_mode(),
     )
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -660,12 +663,14 @@ class LatentTransformerReasoningForGRPO(LatentTransformerReasoningModel):
 
 def build_model(training_args: CustomGRPOConfig, tokenizer):
     device_map = _build_device_map()
+    slow_model_path = resolve_model_path(training_args.slow_thinking_model_path)
     slow_reasoning_model = AutoModelForCausalLM.from_pretrained(
-        training_args.slow_thinking_model_path,
+        slow_model_path,
         torch_dtype=torch.bfloat16,
         device_map=device_map,
         trust_remote_code=True,
         low_cpu_mem_usage=False,
+        local_files_only=is_offline_mode(),
     )
     slow_reasoning_model.config.use_cache = False
 

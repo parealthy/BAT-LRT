@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn 
 from transformers import AutoModel 
 
+from utils.local_assets import is_offline_mode, resolve_model_path
+
 class ReasoningNet(torch.nn.Module):
     def __init__(self, num_reasoning_tokens=128, hidden_size=1024):
         super(ReasoningNet, self).__init__()
@@ -55,11 +57,13 @@ class TransformerReasoningNet(ReasoningNet):
         """Initialize the Transformer Reasoning Network."""
         super(TransformerReasoningNet, self).__init__(num_reasoning_tokens, hidden_size)
         
+        resolved_model_path = resolve_model_path(model_name_or_path)
         self.transformer = AutoModel.from_pretrained(
-                model_name_or_path,
+                resolved_model_path,
                 torch_dtype=torch.bfloat16,  # Use float16 for efficiency
                 low_cpu_mem_usage=True,
                 trust_remote_code=True,
+                local_files_only=is_offline_mode(),
             )
 
         self.transformer.embed_tokens = None # Remove the embedding layer
@@ -96,4 +100,4 @@ class TransformerReasoningNet(ReasoningNet):
         # Revert the dimension transform
         reasoning_embeddings = self.reverse_transform_layer(reasoning_embeddings).to(hidden_states.dtype)
         
-        return reasoning_embeddings 
+        return reasoning_embeddings

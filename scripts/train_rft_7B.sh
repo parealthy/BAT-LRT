@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/offline_env.sh"
+
 # Model
 SLOW_THINKING_MODEL_PATH="deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
 REASONING_NET_PATH="Qwen/Qwen3-Embedding-0.6B"

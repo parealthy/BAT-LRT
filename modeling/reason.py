@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel
 
+from utils.local_assets import is_offline_mode, resolve_model_path
+
 
 class ReasoningNetBase(torch.nn.Module):
     def __init__(self, latent_trajectory_length=128, hidden_size=1024):
@@ -22,11 +24,13 @@ class TransformerReasoningNet(ReasoningNetBase, torch.nn.Module):
     def __init__(self, model_name_or_path, latent_trajectory_length=128, hidden_size=1024):
         super(TransformerReasoningNet, self).__init__(latent_trajectory_length, hidden_size)
 
+        resolved_model_path = resolve_model_path(model_name_or_path)
         self.reasoning_network = AutoModel.from_pretrained(
-            model_name_or_path,
+            resolved_model_path,
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
             trust_remote_code=True,
+            local_files_only=is_offline_mode(),
         )
 
         self.reasoning_network.embed_tokens = None

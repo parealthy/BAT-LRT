@@ -29,6 +29,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 from modeling.reason import TransformerReasoningNet
 from modeling.adaptive_reason import AdaptiveTrajectoryAnchoredReasoningNet
+from utils.local_assets import is_offline_mode, resolve_model_path
 
 
 def _resolve_hidden_size(config) -> int:
@@ -132,10 +133,15 @@ class LatentReasoningInteractive:
         self.reasoning_net_type = reasoning_net_type
         self.fixed_latent_chunks = fixed_latent_chunks
         self.print_latent_budget = print_latent_budget
+        model_path = resolve_model_path(model_path)
+        reasoning_net_path = resolve_model_path(reasoning_net_path)
 
         # Tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
-            model_path, trust_remote_code=True, use_fast=True,
+            model_path,
+            trust_remote_code=True,
+            use_fast=True,
+            local_files_only=is_offline_mode(),
         )
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -148,6 +154,7 @@ class LatentReasoningInteractive:
             device_map=device,
             trust_remote_code=True,
             low_cpu_mem_usage=True,
+            local_files_only=is_offline_mode(),
         )
         self.model.eval()
 
