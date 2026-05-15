@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 import argparse
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 
 DEFAULT_MODEL_ROOT = Path("/mnt/pami23/dzhu/models")
 DEFAULT_DATASET_ROOT = Path("/mnt/pami23/dzhu/datasets")
+DEFAULT_HF_ENDPOINT = "https://hf-mirror.com"
 
 DEFAULT_MODELS = [
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
@@ -52,7 +54,6 @@ def download_model(model_id: str, model_root: Path, dry_run: bool) -> None:
     snapshot_download(
         repo_id=model_id,
         local_dir=str(target),
-        resume_download=True,
     )
 
 
@@ -90,11 +91,20 @@ def parse_args():
     )
     parser.add_argument("--skip-defaults", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--hf-endpoint",
+        default=os.environ.get("HF_ENDPOINT", DEFAULT_HF_ENDPOINT),
+        help="Hugging Face endpoint to use for all downloads.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.hf_endpoint:
+        os.environ["HF_ENDPOINT"] = args.hf_endpoint
+    os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+
     model_root = args.model_root.expanduser()
     dataset_root = args.dataset_root.expanduser()
 
@@ -106,6 +116,7 @@ def main() -> None:
 
     print(f"model root: {model_root}")
     print(f"dataset root: {dataset_root}")
+    print(f"hf endpoint: {os.environ.get('HF_ENDPOINT', 'https://huggingface.co')}")
     if args.dry_run:
         print("dry run: no files will be downloaded")
 
