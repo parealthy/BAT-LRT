@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 import argparse
 import os
+import shutil
+import urllib.parse
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,6 +12,7 @@ from pathlib import Path
 DEFAULT_MODEL_ROOT = Path("/mnt/pami23/dzhu/models")
 DEFAULT_DATASET_ROOT = Path("/mnt/pami23/dzhu/datasets")
 DEFAULT_HF_ENDPOINT = "https://hf-mirror.com"
+DEFAULT_REVISION = "main"
 
 DEFAULT_MODELS = [
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
@@ -43,7 +48,60 @@ def _parse_dataset_spec(value: str) -> DatasetSpec:
     return DatasetSpec(value)
 
 
-def download_model(model_id: str, model_root: Path, dry_run: bool) -> None:
+def _resolve_url(endpoint: str, repo_id: str, revision: str, filename: str) -> str:
+    quoted_revision = urllib.parse.quote(revision, safe="")
+    quoted_filename = urllib.parse.quote(filename, safe="/")
+    return f"{endpoint.rstrip('/')}/{repo_id}/resolve/{quoted_revision}/{quoted_filename}"
+
+
+def _download_url(url: str, target: Path) -> None:
+    if target.exists() and target.stat().st_size > 0:
+        print(f"  skip existing file {target}")
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp_target = target.with_name(f"{target.name}.incomplete")
+    request = urllib.request.Request(url, headers={"User-Agent": "LRT-offline-assets/1.0"})
+    with urllib.request.urlopen(request, timeout=120) as response:
+        with tmp_target.open("wb") as handle:
+            shutil.copyfileobj(response, handle, length=1024 * 1024)
+    tmp_target.replace(target)
+
+
+def _download_model_from_resolve_urls(
+    model_id: str,
+    model_root: Path,
+    endpoint: str,
+    revision: str,
+    max_workers: int,
+) -> None:
+    from huggingface_hub import HfApi
+
+    target = _target_path(model_root, model_id)
+    api = HfApi(endpoint=endpoint)
+    files = api.list_repo_files(repo_id=model_id, repo_type="model", revision=revision)
+    print(f"  fallback: downloading {len(files)} files from {endpoint}/.../resolve/{revision}/...")
+
+    def download_one(filename: str) -> str:
+        url = _resolve_url(endpoint, model_id, revision, filename)
+        _download_url(url, target / filename)
+        return filename
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(download_one, filename) for filename in files]
+        for future in as_completed(futures):
+            filename = future.result()
+            print(f"  ok {filename}")
+
+
+def download_model(
+    model_id: str,
+    model_root: Path,
+    dry_run: bool,
+    endpoint: str,
+    revision: str,
+    max_workers: int,
+) -> None:
     target = _target_path(model_root, model_id)
     print(f"model: {model_id} -> {target}")
     if dry_run:
@@ -51,10 +109,24 @@ def download_model(model_id: str, model_root: Path, dry_run: bool) -> None:
     from huggingface_hub import snapshot_download
 
     target.mkdir(parents=True, exist_ok=True)
-    snapshot_download(
-        repo_id=model_id,
-        local_dir=str(target),
-    )
+    try:
+        snapshot_download(
+            repo_id=model_id,
+            local_dir=str(target),
+            revision=revision,
+            max_workers=max_workers,
+        )
+    except Exception as exc:
+        if endpoint.rstrip("/") == "https://huggingface.co":
+            raise
+        print(f"  snapshot_download failed through {endpoint}: {exc}")
+        _download_model_from_resolve_urls(
+            model_id=model_id,
+            model_root=model_root,
+            endpoint=endpoint,
+            revision=revision,
+            max_workers=max_workers,
+        )
 
 
 def download_dataset(spec: DatasetSpec, dataset_root: Path, dry_run: bool) -> None:
@@ -91,6 +163,8 @@ def parse_args():
     )
     parser.add_argument("--skip-defaults", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--revision", default=DEFAULT_REVISION)
+    parser.add_argument("--max-workers", type=int, default=4)
     parser.add_argument(
         "--hf-endpoint",
         default=os.environ.get("HF_ENDPOINT", DEFAULT_HF_ENDPOINT),
@@ -121,7 +195,14 @@ def main() -> None:
         print("dry run: no files will be downloaded")
 
     for model_id in models:
-        download_model(model_id, model_root, args.dry_run)
+        download_model(
+            model_id=model_id,
+            model_root=model_root,
+            dry_run=args.dry_run,
+            endpoint=args.hf_endpoint,
+            revision=args.revision,
+            max_workers=args.max_workers,
+        )
 
     for dataset_spec in datasets:
         download_dataset(dataset_spec, dataset_root, args.dry_run)
